@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>توليد صوت وبودكاست احترافي</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+body {
+font-family: 'Tajawal', sans-serif;
+direction: rtl;
+background: linear-gradient(to bottom right, #f8fafc, #e2e8f0);
+}
+</style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+<div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-xl text-center border border-gray-200">
+    <h1 class="text-3xl font-bold text-slate-800 mb-4 leading-snug">توليد صوت وبودكاست احترافي</h1>
+    <p class="text-gray-600 mb-6">اكتب النص المطلوب واضغط على الزر لتوليد الصوت أو البودكاست.</p>
+
+    <textarea id="textToGenerate" rows="5" class="w-full p-4 rounded-lg border-2 border-slate-200 focus:outline-none focus:border-blue-500 transition-colors mb-4 text-xl text-gray-800 placeholder-gray-400" placeholder="اكتب هنا النص الذي تريد تحويله إلى صوت...">
+بسم الله الرحمن الرحيم وبه نستعين والصلاه والسلام على اشرف المرسلين سيدنا محمد وعلى اله وصحبه اجمعين كما يحب ربي ويرضى
+</textarea>
+    
+    <div class="mb-4">
+        <label for="voiceSelect" class="block text-gray-700 font-medium mb-2 text-right">اختر نوع الصوت:</label>
+        <select id="voiceSelect" class="w-full p-2 rounded-lg border-2 border-slate-200 focus:outline-none focus:border-blue-500 bg-white">
+            <option value="Puck">حماسي (Puck)</option>
+            <option value="Alto">احترافي (Alto)</option>
+            <option value="Finch">هادئ (Finch)</option>
+            <option value="Sal">رسمي (Sal)</option>
+        </select>
+    </div>
+
+    <button id="generateButton" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+        توليد وتشغيل الصوت
+    </button>
+    
+    <div id="loading" class="mt-4 text-center text-blue-600 hidden">
+        <svg class="animate-spin h-5 w-5 text-blue-600 inline-block mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        جاري توليد الصوت، يرجى الانتظار...
+    </div>
+
+    <div id="audioContainer" class="mt-6 hidden">
+        <audio id="audioPlayer" controls class="w-full"></audio>
+        <a id="downloadLink" class="inline-block mt-4 text-blue-600 hover:underline">تحميل الصوت</a>
+    </div>
+
+    <div id="enhancementButtons" class="mt-6 hidden">
+        <h2 class="text-xl font-bold mb-3 text-right">تحسينات مقترحة:</h2>
+        <div class="grid grid-cols-2 gap-4">
+            <button id="formal" class="py-2 px-4 bg-gray-200 rounded-full hover:bg-gray-300 transition">اجعله رسميًا</button>
+            <button id="marketing" class="py-2 px-4 bg-gray-200 rounded-full hover:bg-gray-300 transition">اجعله تسويقيًا</button>
+            <button id="concise" class="py-2 px-4 bg-gray-200 rounded-full hover:bg-gray-300 transition">اجعله مختصرًا</button>
+            <button id="detailed" class="py-2 px-4 bg-gray-200 rounded-full hover:bg-gray-300 transition">اجعله تفصيليًا</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function base64ToArrayBuffer(base64) {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    function pcmToWav(pcmData, sampleRate) {
+        const dataLength = pcmData.length * 2;
+        const buffer = new ArrayBuffer(44 + dataLength);
+        const view = new DataView(buffer);
+        let offset = 0;
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+        writeString(view, offset, 'RIFF'); offset += 4;
+        view.setUint32(offset, 36 + dataLength, true); offset += 4;
+        writeString(view, offset, 'WAVE'); offset += 4;
+        writeString(view, offset, 'fmt '); offset += 4;
+        view.setUint32(offset, 16, true); offset += 4;
+        view.setUint16(offset, 1, true); offset += 2;
+        view.setUint16(offset, 1, true); offset += 2;
+        view.setUint32(offset, sampleRate, true); offset += 4;
+        view.setUint32(offset, sampleRate * 2, true); offset += 4;
+        view.setUint16(offset, 2, true); offset += 2;
+        view.setUint16(offset, 16, true); offset += 2;
+        writeString(view, offset, 'data'); offset += 4;
+        view.setUint32(offset, dataLength, true); offset += 4;
+        for (let i = 0; i < pcmData.length; i++) {
+            view.setInt16(offset, pcmData[i], true);
+            offset += 2;
+        }
+        return new Blob([view], { type: 'audio/wav' });
+    }
+
+    const generateButton = document.getElementById('generateButton');
+    const textToGenerate = document.getElementById('textToGenerate');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const loadingDiv = document.getElementById('loading');
+    const audioContainer = document.getElementById('audioContainer');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const downloadLink = document.getElementById('downloadLink');
+    const enhancementButtons = document.getElementById('enhancementButtons');
+    const formalBtn = document.getElementById('formal');
+    const marketingBtn = document.getElementById('marketing');
+    const conciseBtn = document.getElementById('concise');
+    const detailedBtn = document.getElementById('detailed');
+    const apiKey = "";
+    const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+    const genAiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+
+    async function generateAudio(prompt, voiceName) {
+        generateButton.disabled = true;
+        loadingDiv.classList.remove('hidden');
+        audioContainer.classList.add('hidden');
+        enhancementButtons.classList.add('hidden');
+        try {
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+            const response = await fetch(ttsApiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const result = await response.json();
+            const part = result?.candidates?.[0]?.content?.parts?.[0];
+            const audioData = part?.inlineData?.data;
+            const mimeType = part?.inlineData?.mimeType;
+            if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                const sampleRate = parseInt(mimeType.match(/rate=(\d+)/)[1], 10);
+                const pcmData = base64ToArrayBuffer(audioData);
+                const pcm16 = new Int16Array(pcmData);
+                const wavBlob = pcmToWav(pcm16, sampleRate);
+                const audioUrl = URL.createObjectURL(wavBlob);
+                audioPlayer.src = audioUrl;
+                audioPlayer.load();
+                audioContainer.classList.remove('hidden');
+                enhancementButtons.classList.remove('hidden');
+                downloadLink.href = audioUrl;
+                downloadLink.download = 'generated_audio.wav';
+            } else {
+                console.error("Audio data is missing or invalid.");
+            }
+        } catch (error) {
+            console.error("Failed to generate audio:", error);
+            alert("حدث خطأ أثناء توليد الصوت. يرجى المحاولة مرة أخرى.");
+        } finally {
+            generateButton.disabled = false;
+            loadingDiv.classList.add('hidden');
+        }
+    }
+
+    async function enhanceText(prompt, type) {
+        try {
+            const enhancementPrompt = `أعد صياغة النص التالي ليكون أكثر ${type}، مع الحفاظ على المعنى الأساسي. النص: "${prompt}"`;
+            const payload = {
+                contents: [{ parts: [{ text: enhancementPrompt }] }],
+            };
+            const response = await fetch(genAiApiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            const enhancedText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (enhancedText) {
+                textToGenerate.value = enhancedText;
+            } else {
+                alert("تعذر تحسين النص.");
+            }
+        } catch (error) {
+            console.error("Failed to enhance text:", error);
+            alert("حدث خطأ أثناء تحسين النص. يرجى المحاولة مرة أخرى.");
+        }
+    }
+
+    generateButton.addEventListener('click', () => {
+        const text = textToGenerate.value;
+        const voice = voiceSelect.value;
+        generateAudio(text, voice);
+    });
+
+    formalBtn.addEventListener('click', () => enhanceText(textToGenerate.value, 'رسمية'));
+    marketingBtn.addEventListener('click', () => enhanceText(textToGenerate.value, 'تسويقية'));
+    conciseBtn.addEventListener('click', () => enhanceText(textToGenerate.value, 'موجزة'));
+    detailedBtn.addEventListener('click', () => enhanceText(textToGenerate.value, 'تفصيلية'));
+</script>
+
+</body>
+</html>
